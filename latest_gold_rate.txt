@@ -1,9 +1,7 @@
 ========================================
- TANISHQ 22 KARAT GOLD RATE UPDATE
-========================================
-Checked On      : 03-Oct-2026 at 02:12 PM IST
-22K Gold Rate   : ₹13,223.00 per gram
+ OFFICIAL TANISHQ 22K GOLD RATE UPDATE
+Checked On      : 03-Oct-2026 at 02:23 PM IST
+22K Gold Rate   : ₹13,720.00 per gram
 Alert Threshold : ₹12,750.00 per gram
-Status          : Normal: Price is ₹473.00 above threshold (₹12,750.00)
-Source          : GoodReturns (22K India Rate)
-========================================
+Status          : Normal: Price is ₹970.00 above threshold (₹12,750.00)
+Source          : Tanishq Official (https://www.tanishq.co.in/gold-rate.html)
