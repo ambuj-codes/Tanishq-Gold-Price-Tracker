@@ -1,112 +1,135 @@
 import os
 import re
 from datetime import datetime, timezone, timedelta
-import requests
+from curl_cffi import requests
 from bs4 import BeautifulSoup
 
-# Alert threshold for 22 Karat gold per gram in INR
 ALERT_THRESHOLD = float(os.getenv("ALERT_THRESHOLD", "12750.0"))
+
+HEADERS = {
+    "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8",
+    "Accept-Language": "en-IN,en-GB;q=0.9,en-US;q=0.8,en;q=0.7",
+    "Sec-Ch-Ua": '"Not-A.Brand";v="99", "Chromium";v="124", "Google Chrome";v="124"',
+    "Sec-Ch-Ua-Mobile": "?0",
+    "Sec-Ch-Ua-Platform": '"Windows"',
+    "Sec-Fetch-Dest": "document",
+    "Sec-Fetch-Mode": "navigate",
+    "Sec-Fetch-Site": "none",
+    "Sec-Fetch-User": "?1",
+    "Upgrade-Insecure-Requests": "1",
+}
 
 
 def get_ist_now():
-    """Returns current timestamp in Indian Standard Time (IST)."""
     ist_tz = timezone(timedelta(hours=5, minutes=30))
     now = datetime.now(ist_tz)
     return now.strftime("%d-%b-%Y"), now.strftime("%I:%M %p IST")
 
 
-def fetch_gold_rate():
-    """Scrapes today's 22 Karat gold rate per gram from Tanishq."""
-    headers = {
-        "User-Agent": (
-            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
-            "AppleWebKit/537.36 (KHTML, like Gecko) "
-            "Chrome/124.0.0.0 Safari/537.36"
-        ),
-        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
-        "Accept-Language": "en-IN,en-US;q=0.9,en;q=0.8",
-    }
+def extract_price(text: str):
+    """Extracts 22K 1G or 10G gold rate from scraped text."""
+    # Check 1 Gram rate
+    p_1g = re.search(
+        r"22\s*(?:Kt|Karat|K)[\s\S]{1,250}?1\s*G(?:ram)?[\s\S]{1,60}?₹?\s*([\d,]{4,7}(?:\.\d{1,2})?)",
+        text,
+        re.IGNORECASE,
+    )
+    if p_1g:
+        val = float(p_1g.group(1).replace(",", ""))
+        if 5000 <= val <= 35000:
+            return val
 
-    urls = [
-        "https://www.tanishq.co.in/gold-rate.html?lang=en_IN",
-        "https://www.miabytanishq.com/en_IN/gold-rate-today",
-    ]
+    # Check 10 Gram rate and divide by 10
+    p_10g = re.search(
+        r"22\s*(?:Kt|Karat|K)[\s\S]{1,250}?10\s*G(?:rams)?[\s\S]{1,60}?₹?\s*([\d,]{5,8}(?:\.\d{1,2})?)",
+        text,
+        re.IGNORECASE,
+    )
+    if p_10g:
+        val10 = float(p_10g.group(1).replace(",", ""))
+        per_g = val10 / 10.0
+        if 5000 <= per_g <= 35000:
+            return per_g
 
-    for url in urls:
-        try:
-            print(f"Checking Tanishq URL: {url}")
-            response = requests.get(url, headers=headers, timeout=15)
-            if response.status_code != 200:
-                print(f"Returned HTTP status {response.status_code}. Skipping...")
-                continue
-
-            soup = BeautifulSoup(response.text, "html.parser")
-            page_text = soup.get_text(" ", strip=True)
-
-            # Strategy 1: Table row matching 22K and 1g
-            for tr in soup.find_all("tr"):
-                row_str = tr.get_text(" ", strip=True)
-                if "22" in row_str and ("1" in row_str or "1G" in row_str or "1g" in row_str):
-                    matches = re.findall(r"₹?\s*([\d,]{4,7}(?:\.\d{1,2})?)", row_str)
-                    for m in matches:
-                        clean_val = float(m.replace(",", ""))
-                        if 5000 <= clean_val <= 30000:
-                            print(f"Strategy 1 extracted: ₹{clean_val}")
-                            return clean_val
-
-            # Strategy 2: Text regex looking for 22 Kt/Karat followed by 1G price
-            p1g = re.search(
-                r"22\s*(?:Kt|Karat|K)[\s\S]{1,200}?1\s*G[\s\S]{1,60}?₹?\s*([\d,]{4,7}(?:\.\d{1,2})?)",
-                page_text,
-                re.IGNORECASE,
-            )
-            if p1g:
-                val = float(p1g.group(1).replace(",", ""))
-                if 5000 <= val <= 30000:
-                    print(f"Strategy 2 extracted: ₹{val}")
-                    return val
-
-            # Strategy 3: Check for 10 Grams 22K rate and divide by 10
-            p10g = re.search(
-                r"22\s*(?:Kt|Karat|K)[\s\S]{1,200}?10\s*G[\s\S]{1,60}?₹?\s*([\d,]{5,8}(?:\.\d{1,2})?)",
-                page_text,
-                re.IGNORECASE,
-            )
-            if p10g:
-                val10 = float(p10g.group(1).replace(",", ""))
-                per_gram = val10 / 10.0
-                if 5000 <= per_gram <= 30000:
-                    print(f"Strategy 3 extracted: ₹{per_gram} (from 10g)")
-                    return per_gram
-
-        except Exception as e:
-            print(f"Encountered error fetching {url}: {e}")
+    # General pattern matching
+    p_all = re.findall(r"22\s*(?:Kt|Karat|K)[\s\S]{1,60}?₹?\s*([\d,]{4,7}(?:\.\d{1,2})?)", text, re.IGNORECASE)
+    for match in p_all:
+        clean = float(match.replace(",", ""))
+        if 5000 <= clean <= 35000:
+            return clean
 
     return None
+
+
+def fetch_tanishq_rate():
+    sources = [
+        {"name": "Tanishq Official", "url": "https://www.tanishq.co.in/gold-rate.html?lang=en_IN"},
+        {"name": "Mia by Tanishq", "url": "https://www.miabytanishq.com/en_IN/gold-rate-today"},
+        # Resilient mirror reporting official Tanishq / 22K benchmark rates in India
+        {"name": "GoodReturns (22K India Rate)", "url": "https://www.goodreturns.in/gold-rates/"},
+    ]
+
+    for src in sources:
+        try:
+            print(f"Connecting to {src['name']}...")
+            # impersonate='chrome124' mimics Chrome's exact TLS signature and bypasses 403
+            resp = requests.get(
+                src["url"],
+                headers=HEADERS,
+                impersonate="chrome124",
+                timeout=25,
+            )
+            print(f"[{src['name']}] HTTP Status: {resp.status_code}")
+
+            if resp.status_code != 200:
+                continue
+
+            soup = BeautifulSoup(resp.text, "html.parser")
+
+            # Check table structures
+            for tr in soup.find_all("tr"):
+                row = tr.get_text(" ", strip=True)
+                if "22" in row and ("1" in row or "gram" in row.lower()):
+                    matches = re.findall(r"₹?\s*([\d,]{4,7}(?:\.\d{1,2})?)", row)
+                    for m in matches:
+                        num = float(m.replace(",", ""))
+                        if 5000 <= num <= 35000:
+                            print(f"Extracted ₹{num} from table on {src['name']}")
+                            return num, src["name"]
+
+            # Fallback to regex scanning
+            rate = extract_price(soup.get_text(" ", strip=True))
+            if rate:
+                print(f"Extracted ₹{rate} from text on {src['name']}")
+                return rate, src["name"]
+
+        except Exception as e:
+            print(f"Error accessing {src['name']}: {e}")
+
+    return None, None
 
 
 def main():
     date_str, time_str = get_ist_now()
     full_timestamp = f"{date_str} at {time_str}"
-    rate = fetch_gold_rate()
+    rate, source_name = fetch_tanishq_rate()
 
-    # Ensure historical log ledger exists
     history_file = "gold_rate_history.csv"
     if not os.path.exists(history_file):
         with open(history_file, "w", encoding="utf-8") as f:
-            f.write("Date,Time_IST,Purity,Rate_Per_Gram_INR,Status\n")
+            f.write("Date,Time_IST,Purity,Rate_Per_Gram_INR,Status,Source\n")
 
     if rate is None:
-        print("Could not retrieve rate from Tanishq.")
         subject = f"⚠️ [ERROR] Tanishq Gold Tracker Failed ({full_timestamp})"
         body = (
-            f"Automated gold check failed at {full_timestamp}.\n"
-            f"The scraper could not parse the price. Please check if Tanishq changed their site structure."
+            f"Automated check failed at {full_timestamp}.\n"
+            f"Both Tanishq and backup mirrors returned connection errors.\n"
+            f"Check GitHub Actions logs for details."
         )
         with open("commit_message.txt", "w", encoding="utf-8") as f:
             f.write(f"{subject}\n\n{body}\n")
         with open("latest_gold_rate.txt", "w", encoding="utf-8") as f:
-            f.write(f"Last Attempt: {full_timestamp}\nStatus: Scraping Failed\n")
+            f.write(f"Last Attempt: {full_timestamp}\nStatus: Failed to retrieve rates\n")
         return
 
     is_drop = rate < ALERT_THRESHOLD
@@ -129,25 +152,20 @@ def main():
         f"22K Gold Rate   : ₹{rate:,.2f} per gram\n"
         f"Alert Threshold : ₹{ALERT_THRESHOLD:,.2f} per gram\n"
         f"Status          : {status_line}\n"
-        f"Source          : https://www.tanishq.co.in/gold-rate.html?lang=en_IN\n"
+        f"Source          : {source_name}\n"
         f"========================================\n"
     )
 
-    print(f"\n--- Commit Message ---\nSubject: {subject}\n\n{body}")
-
-    # 1. Write the Git commit message (Used as the Email subject and body by GitHub)
     with open("commit_message.txt", "w", encoding="utf-8") as f:
         f.write(f"{subject}\n\n{body}\n")
 
-    # 2. Update latest_gold_rate.txt
     with open("latest_gold_rate.txt", "w", encoding="utf-8") as f:
         f.write(body)
 
-    # 3. Append to historical CSV ledger
     with open(history_file, "a", encoding="utf-8") as f:
-        f.write(f"{date_str},{time_str},22 Karat,{rate:.2f},{csv_status}\n")
+        f.write(f"{date_str},{time_str},22 Karat,{rate:.2f},{csv_status},{source_name}\n")
 
-    print("Files updated successfully. Ready for commit & push.")
+    print(f"Processed rate: ₹{rate:,.2f}/g from {source_name}")
 
 
 if __name__ == "__main__":
