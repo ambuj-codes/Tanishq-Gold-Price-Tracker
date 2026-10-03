@@ -5,7 +5,7 @@ import requests
 from bs4 import BeautifulSoup
 
 # Alert threshold for 22 Karat gold per gram (INR)
-ALERT_THRESHOLD = float(os.getenv("ALERT_THRESHOLD", "12750.0"))
+ALERT_THRESHOLD = float(os.getenv("ALERT_THRESHOLD", "13750.0"))
 
 OFFICIAL_TANISHQ_URL = "https://www.tanishq.co.in/gold-rate.html?lang=en_IN"
 
