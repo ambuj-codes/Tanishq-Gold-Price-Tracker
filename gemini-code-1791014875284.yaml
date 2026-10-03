@@ -1,0 +1,43 @@
+name: Tanishq 22K Gold Rate Agent
+
+on:
+  schedule:
+    # 2:00 PM IST is 08:30 UTC (UTC + 5:30)
+    - cron: '30 8 * * *'
+  workflow_dispatch: # Allows manual trigger from the GitHub Actions tab
+
+jobs:
+  check-gold-price:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out repository code
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Execute Gold Tracker
+        env:
+          ALERT_THRESHOLD: "12750.0"
+          ALWAYS_NOTIFY: "true" # Sends daily price at 2 PM, and adds alert flags if < 12750
+          # Email Settings
+          SMTP_HOST: "smtp.gmail.com"
+          SMTP_PORT: "587"
+          EMAIL_USER: ${{ secrets.EMAIL_USER }}
+          EMAIL_PASS: ${{ secrets.EMAIL_PASS }}
+          RECIPIENT_EMAIL: ${{ secrets.RECIPIENT_EMAIL }}
+          # SMS Settings (Optional via Twilio)
+          TWILIO_ACCOUNT_SID: ${{ secrets.TWILIO_ACCOUNT_SID }}
+          TWILIO_AUTH_TOKEN: ${{ secrets.TWILIO_AUTH_TOKEN }}
+          TWILIO_PHONE_NUMBER: ${{ secrets.TWILIO_PHONE_NUMBER }}
+          RECIPIENT_PHONE: ${{ secrets.RECIPIENT_PHONE }}
+        run: python tracker.py
