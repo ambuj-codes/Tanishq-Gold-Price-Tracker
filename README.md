@@ -4,7 +4,7 @@ An automated GitHub Actions agent that tracks the daily **22 Karat gold rate** p
 
 Uses GitHub's native **Commit/Push Email Notification** hook:
 - No Gmail App Passwords, Twilio credentials, or API secrets required.
-- At 2:00 PM IST, the action checks Tanishq, records the rate, and pushes a commit to your repository.
+- At 12:00 PM IST, the action checks Tanishq, records the rate, and pushes a commit to your repository.
 - GitHub automatically sends an email to your verified address containing the rate and an alert banner if the price falls below **₹13,750 per gram**.
 
 ---
