@@ -3,7 +3,7 @@ name: Tanishq 22K Gold Rate Agent
 on:
   schedule:
     # 12:00 PM IST corresponds to 06:30 UTC (UTC + 5:30)
-    - cron: '30 6 * * *'
+    - cron: '27 3 * * *'
   workflow_dispatch: # Allows manual trigger from the GitHub Actions tab anytime
 
 permissions:
